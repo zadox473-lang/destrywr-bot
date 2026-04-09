@@ -14,10 +14,6 @@ from telethon.errors import FloodWaitError
 from flask import Flask, jsonify
 import threading
 import time
-import nest_asyncio
-
-# Apply nest_asyncio for Python 3.14 compatibility
-nest_asyncio.apply()
 
 # ==================== FLASK WEB SERVER ====================
 app_flask = Flask(__name__)
@@ -47,7 +43,7 @@ def stats():
     })
 
 def run_flask():
-    """Run Flask server in a separate thread with its own event loop"""
+    """Run Flask server in a separate thread"""
     port = int(os.environ.get('PORT', 8080))
     app_flask.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
@@ -863,25 +859,23 @@ async def broadcast_command(client, message):
     await message.reply(simple_box(f"✅ Broadcast sent to {sent} users!"))
 
 # ==================== START BOT ====================
-def run_bot():
-    """Run the bot with proper event loop"""
+async def main():
+    """Main async function to run both Flask and Bot"""
     print("🔥 PROXY USERBOT MANAGER STARTING...")
     print("╔══════════════════════════════════════╗")
     print("║   DEV - @PROXYFXC x @HUNNYFXC       ║")
     print("╚══════════════════════════════════════╝")
     
-    # Create new event loop for bot
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    # Run the bot
-    loop.run_until_complete(bot.run())
-    loop.close()
-
-if __name__ == "__main__":
-    # Start Flask in a separate thread
+    # Start Flask in thread
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
     
-    # Run bot with proper event loop handling
-    run_bot()
+    # Start the bot
+    await bot.run()
+    
+    # Keep running
+    await asyncio.Event().wait()
+
+if __name__ == "__main__":
+    # Run the main async function
+    asyncio.run(main())
