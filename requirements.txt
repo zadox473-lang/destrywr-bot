@@ -2,4 +2,3 @@ pyrogram
 telethon
 flask
 aiohttp
-nest-asyncio
