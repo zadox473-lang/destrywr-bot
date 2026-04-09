@@ -14,6 +14,10 @@ from telethon.errors import FloodWaitError
 from flask import Flask, jsonify
 import threading
 import time
+import nest_asyncio
+
+# Apply nest_asyncio for Python 3.14 compatibility
+nest_asyncio.apply()
 
 # ==================== FLASK WEB SERVER ====================
 app_flask = Flask(__name__)
@@ -43,7 +47,7 @@ def stats():
     })
 
 def run_flask():
-    """Run Flask server in a separate thread"""
+    """Run Flask server in a separate thread with its own event loop"""
     port = int(os.environ.get('PORT', 8080))
     app_flask.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
@@ -138,6 +142,9 @@ auto_reply_targets = {} # user_id: target_mention
 muted_groups = {}    # group_id: bool (mute action active)
 muted_users = {}     # user_id: bool (per user mute)
 opponent_bots_list = {} # group_id: list of bot usernames
+nc_reply_active = {}
+muted_bots = {}
+backup_profiles = {}
 
 # ==================== FORCE JOIN CHECK ====================
 async def check_force_join(user_id):
@@ -216,6 +223,9 @@ async def add_session(client, message):
     msg = await message.reply(simple_box("🔄 Connecting..."))
     
     try:
+        from telethon.sessions import StringSession
+        from telethon.tl.functions.channels import CreateChannelRequest
+        
         tele_client = TelegramClient(
             StringSession(session_string),
             API_ID,
@@ -248,8 +258,6 @@ async def add_session(client, message):
                     await event.reply(msg)
                 except:
                     pass
-            
-            # NC Reply (when group name changes - handled by name change event)
         
         @tele_client.on(events.ChatAction)
         async def on_chat_action(event):
@@ -418,8 +426,6 @@ async def proxyatcstop_command(client, message):
     await message.reply(simple_box("🛑 Auto-reply stopped!"))
 
 # ==================== NC REPLY ====================
-nc_reply_active = {}
-
 @bot.on_message(filters.command("ncreplye") & filters.private)
 async def ncreplye_command(client, message):
     if not await force_join_message(message):
@@ -467,8 +473,6 @@ async def allbotse_command(client, message):
     await message.reply(simple_box(f"🤖 BOTS IN GROUP:\n\n{result}"))
 
 # ==================== MUTE COMMANDS ====================
-muted_bots = {}
-
 @bot.on_message(filters.command("mutee") & filters.private)
 async def mutee_command(client, message):
     if not await force_join_message(message):
@@ -597,8 +601,6 @@ async def raiddm_command(client, message):
     asyncio.create_task(dm_raid())
 
 # ==================== CLONE / BACKUP ====================
-backup_profiles = {}
-
 @bot.on_message(filters.command("clonee") & filters.private)
 async def clonee_command(client, message):
     if not await force_join_message(message):
@@ -773,6 +775,7 @@ async def gccreate_command(client, message):
     
     for i in range(count):
         try:
+            from telethon.tl.functions.channels import CreateChannelRequest
             group_name = f"{name} {i+1}"
             result = await tele_client(CreateChannelRequest(
                 title=group_name,
@@ -860,18 +863,25 @@ async def broadcast_command(client, message):
     await message.reply(simple_box(f"✅ Broadcast sent to {sent} users!"))
 
 # ==================== START BOT ====================
-print("🔥 PROXY USERBOT MANAGER STARTING...")
-print("╔══════════════════════════════════════╗")
-print("║   DEV - @PROXYFXC x @HUNNYFXC       ║")
-print("╚══════════════════════════════════════╝")
+def run_bot():
+    """Run the bot with proper event loop"""
+    print("🔥 PROXY USERBOT MANAGER STARTING...")
+    print("╔══════════════════════════════════════╗")
+    print("║   DEV - @PROXYFXC x @HUNNYFXC       ║")
+    print("╚══════════════════════════════════════╝")
+    
+    # Create new event loop for bot
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    # Run the bot
+    loop.run_until_complete(bot.run())
+    loop.close()
 
-# Import StringSession
-from telethon.sessions import StringSession
-from telethon.tl.functions.channels import CreateChannelRequest
-
-# Start Flask in a separate thread
-flask_thread = threading.Thread(target=run_flask, daemon=True)
-flask_thread.start()
-
-# Run the bot
-bot.run()
+if __name__ == "__main__":
+    # Start Flask in a separate thread
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    
+    # Run bot with proper event loop handling
+    run_bot()
