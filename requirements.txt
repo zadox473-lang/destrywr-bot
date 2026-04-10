@@ -1,4 +1,3 @@
-pyrogram
-telethon
-flask
-aiohttp
+Flask
+requests
+python-telegram-bot
